@@ -8,7 +8,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -31,8 +30,14 @@ public class WebApp {
     private String staticPathName = "static";
     //    静态文件路径和类型
     private final Map<String, String> staticFiles = new HashMap<>();
+    //    网页文件目录,可以更改
+    private String htmlPathName = "html";
+    //    静态文件路径和类型,有可能html目录下有不是网页的文件
+    private final Map<String, String> htmlFiles = new HashMap<>();
     //    标记服务器是否开启
     private boolean isOpen = true;
+    //    默认端口
+    private final int PORT = 8080;
 
     //    把路径映射添加到Map中去
     public void use(String path, Handler handler) {
@@ -53,53 +58,74 @@ public class WebApp {
     public void setStatic(String path) {
 //        更新的静态资源目录
         this.staticPathName = path;
-        URL url = this.getClass().getClassLoader().getResource(path);
-        assert url != null;
-        File staticPath = new File(url.getFile());
         try {
 //            扫描添加
-            getFiles(staticPath);
+            getStaticFilesToMap(Utils.getResourcesFile(path), this.staticFiles);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    //    处理当前文件夹下的所有文件
-    private void getFiles(File staticPath) throws IOException {
-        if (staticPath.exists()) {
-            if (staticPath.isDirectory()) {
-                for (File file : Objects.requireNonNull(staticPath.listFiles())) {
+    //    处理静态资源文件夹下的所有文件
+    private void getStaticFilesToMap(File rootPath, Map<String, String> map) throws IOException {
+        if (rootPath.exists()) {
+            if (rootPath.isDirectory()) {
+                for (File file : Objects.requireNonNull(rootPath.listFiles())) {
                     if (file.isDirectory()) {
-                        getFiles(file);
+                        getStaticFilesToMap(file, map);
                     } else {
-                        handlerFileToMap(file);
+//                        处理扫描出来的文件到对应的map中
+                        Utils.handlerFileToMap(file, this.staticPathName, map);
                     }
                 }
             } else {
-                handlerFileToMap(staticPath);
+//                处理扫描出来的文件到对应的map中
+                Utils.handlerFileToMap(rootPath, this.staticPathName, map);
             }
         }
     }
 
-    //    处理扫描出来的文件到对应的map中
-    private void handlerFileToMap(File file) throws IOException {
-//                        获取当前文件的父文件名字
-        String parentName = file.getParentFile().getName();
-//                        文件的路径
-        String path;
-        if (staticPathName.equals(parentName)) {
-//                            当前文件对应的路径
-            path = "/" + file.getName();
-        } else {
-            path = "/" + parentName + "/" + file.getName();
+
+    //    扫描html目录,注册到路由中去
+    public void autoHandlerHtml(String path) {
+//        更新网页文件目录
+        this.htmlPathName = path;
+        try {
+            getHtmlFilesToMap(Utils.getResourcesFile(path), this.htmlFiles);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-//                        文件的类型
-        String type = Files.probeContentType(file.toPath());
-//                        加到静态文件路径和类型的map中去
-        staticFiles.put(path, type);
     }
 
+    //    处理html目录下的文件
+    private void getHtmlFilesToMap(File rootPath, Map<String, String> map) throws IOException {
+        if (rootPath.exists()) {
+            if (rootPath.isDirectory()) {
+                for (File file : Objects.requireNonNull(rootPath.listFiles())) {
+                    if (file.isDirectory()) {
+                        getHtmlFilesToMap(file, map);
+                    } else {
+//                        处理扫描出来的文件到对应的map中
+                        Utils.handlerFileToPathToMap(file, this.htmlPathName, map);
+                    }
+                }
+            } else {
+//                处理扫描出来的文件到对应的map中
+                Utils.handlerFileToPathToMap(rootPath, this.htmlPathName, map);
+            }
+        }
+    }
+
+
     //    开启监听
+    public void listen() {
+        listen(this.PORT);
+    }
+
+    public void listen(MyConsumer consumer) {
+        listen(this.PORT, consumer);
+    }
+
     public void listen(int port) {
         listen(port, () -> {
         });
@@ -108,10 +134,17 @@ public class WebApp {
     //    @SuppressWarnings("InfiniteLoopStatement") // 去掉循环的黄线提示
     public void listen(int port, MyConsumer consumer) {
         try {
+            long startTime = System.currentTimeMillis();
+//            不知道有没有用,反正加上也没事
+            System.setProperty("java.awt.headless", Boolean.toString(true));
             ServerSocket serverSocket = new ServerSocket(port);
-            printInitMessage(port);
 //            加载静态资源目录,服务启动起来先加载默认的静态资源目录
             this.setStatic(this.staticPathName);
+            System.out.println("加载静态资源目录完成 耗时: " + (System.currentTimeMillis() - startTime) + "ms");
+//            加载html文件映射
+            this.autoHandlerHtml(this.htmlPathName);
+            System.out.println("加载html文件目录完成 耗时: " + (System.currentTimeMillis() - startTime) + "ms");
+            printInitMessage(port, startTime);
             consumer.accept();
             while (isOpen) {
 //                获取连接
@@ -135,16 +168,14 @@ public class WebApp {
                             }
                         }
 //                      判断静态资源路径有没有对应的路径
-                        else if (staticFiles.containsKey(request.getUrl())) {
-//                           获取当前文件的类型
-                            String type = staticFiles.get(request.getUrl());
-                            URL url = this.getClass().getClassLoader().getResource(staticPathName + request.getUrl());
-                            assert url != null;
-                            File file = new File(url.getFile());
-                            FileInputStream is = new FileInputStream(file);
-                            response.setStatus(200)
-                                    .setHeaders("Content-Type: ", type + ";charset=utf-8")
-                                    .send(is);
+                        else if (this.staticFiles.containsKey(request.getUrl())) {
+//                            写静态内容到浏览器
+                            handlerFileToWrite(request, response, this.staticFiles, this.staticPathName);
+                        }
+//                        处理html文件夹下的映射
+                        else if (this.htmlFiles.containsKey(request.getUrl())) {
+//                            写静态内容到浏览器
+                            handlerFileToWrite(request, response, this.htmlFiles, this.htmlPathName);
                         } else {
                             response.setStatus(404)
                                     .setHeaders("Content-Type", "text/html")
@@ -160,6 +191,38 @@ public class WebApp {
         }
     }
 
+    //    处理文件写到浏览器
+    private void handlerFileToWrite(Request req, Response res, Map<String, String> files, String name) throws Exception {
+        // 获取当前文件的类型
+        String type = files.get(req.getUrl());
+        FileInputStream is = null;
+//        判断是静态资源还是html目录下的文件
+        if (this.staticPathName.equals(name)) {
+            URL url = this.getClass().getClassLoader().getResource(name + req.getUrl());
+            assert url != null;
+            File file = new File(url.getFile());
+            is = new FileInputStream(file);
+        } else if (this.htmlPathName.equals(name)) {
+//            index.html
+            if ("/".equals(req.getUrl())) {
+                URL url = this.getClass().getClassLoader().getResource(name + req.getUrl() + "index.html");
+                assert url != null;
+                File file = new File(url.getFile());
+                is = new FileInputStream(file);
+            } else {
+                URL url = this.getClass().getClassLoader().getResource(name + req.getUrl() + ".html");
+                assert url != null;
+                File file = new File(url.getFile());
+                is = new FileInputStream(file);
+            }
+        }
+        assert is != null;
+//        写文件内容到浏览器
+        res.setStatus(200)
+                .setHeaders("Content-Type: ", type + ";charset=utf-8")
+                .send(is);
+    }
+
     //    关闭服务器
     public void shutdown() {
         pool.shutdownNow();
@@ -167,7 +230,7 @@ public class WebApp {
     }
 
     //    打印初始化信息
-    private void printInitMessage(int port) throws UnknownHostException {
+    private void printInitMessage(int port, long startTime) throws UnknownHostException {
         String banner = "    .___                      ___.    \n" +
                 "  __| _/____    __  _  __ ____\\_ |__  \n" +
                 " / __ |\\__  \\   \\ \\/ \\/ // __ \\| __ \\ \n" +
@@ -179,6 +242,7 @@ public class WebApp {
         System.out.println("服务启动成功:");
         System.out.println("\t> 本地访问: http://localhost:" + port);
         System.out.println("\t> 网络访问: http://" + InetAddress.getLocalHost().getHostAddress() + ":" + port);
+        System.out.println("\t启动总耗时: " + (System.currentTimeMillis() - startTime) + "ms\n");
     }
 
 }
