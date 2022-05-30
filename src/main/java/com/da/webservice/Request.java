@@ -3,6 +3,8 @@ package com.da.webservice;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 封装请求
@@ -11,7 +13,7 @@ public class Request {
     //    请求路径
     private String url;
     //    请求参数
-    private String params;
+    private Map<String, String> params;
     //    请求方法
     private String method;
 
@@ -19,7 +21,7 @@ public class Request {
         return url;
     }
 
-    public String getParams() {
+    public Map<String, String> getParams() {
         return params;
     }
 
@@ -41,8 +43,24 @@ public class Request {
 //                      处理url
                         String beforeUrl = requestLine[1];
                         if (beforeUrl.contains("?")) {
+                            this.params = new HashMap<>();
                             this.url = beforeUrl.substring(0, beforeUrl.indexOf("?"));
-                            this.params = beforeUrl.substring(beforeUrl.indexOf("?") + 1);
+//                            处理url中?a=xx&b=xx的参数
+                            String beforeParams = beforeUrl.substring(beforeUrl.indexOf("?") + 1);
+//                            如果有&
+                            if (beforeParams.contains("&")) {
+//                                用&分开
+                                for (String s : beforeParams.split("&")) {
+//                                    用=分开
+                                    if (s != null && s.contains("=")) {
+                                        String[] split = s.split("=");
+                                        this.params.put(split[0], split[1]);
+                                    }
+                                }
+                            } else if (beforeParams.contains("=")) {
+                                String[] split = beforeParams.split("=");
+                                this.params.put(split[0], split[1]);
+                            }
                         } else {
                             this.url = beforeUrl;
                         }
