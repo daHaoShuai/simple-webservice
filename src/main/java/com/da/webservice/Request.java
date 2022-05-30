@@ -1,0 +1,57 @@
+package com.da.webservice;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
+/**
+ * 封装请求
+ */
+public class Request {
+    //    请求路径
+    private String url;
+    //    请求参数
+    private String params;
+    //    请求方法
+    private String method;
+
+    public String getUrl() {
+        return url;
+    }
+
+    public String getParams() {
+        return params;
+    }
+
+    public String getMethod() {
+        return method;
+    }
+
+    public Request(InputStream is) {
+        try {
+            if (is != null) {
+                InputStreamReader isr = new InputStreamReader(is);
+                BufferedReader br = new BufferedReader(isr);
+//              获取请求的第一行数据
+                String line = br.readLine();
+                if (line != null && line.length() > 0) {
+                    String[] requestLine = line.split(" ");
+                    if (requestLine.length == 3 && requestLine[2].equals("HTTP/1.1")) {
+                        this.method = requestLine[0];
+//                      处理url
+                        String beforeUrl = requestLine[1];
+                        if (beforeUrl.contains("?")) {
+                            this.url = beforeUrl.substring(0, beforeUrl.indexOf("?"));
+                            this.params = beforeUrl.substring(beforeUrl.indexOf("?") + 1);
+                        } else {
+                            this.url = beforeUrl;
+                        }
+                    }
+                    System.out.println("通过 " + this.method + " 方法,访问了 " + this.url);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
