@@ -155,12 +155,19 @@ public class Utils {
                     String path = clz.getAnnotation(Mapping.class).value();
 //                    获取当前类实现的所有接口
                     Class<?>[] interfaces = clz.getInterfaces();
+//                        实例化当前类
 //                    判断当前类是不是实现了Handler接口
                     if (Arrays.asList(interfaces).contains(Handler.class)) {
-//                        实例化当前类
-                        Handler instance = (Handler) clz.getConstructor().newInstance();
+                        Object instance = clz.getConstructor().newInstance();
+//                        在当前类注册前的操作
+                        if (Arrays.asList(interfaces).contains(InitBefore.class)) {
+                            ((InitBefore) instance).before(app);
+                        }
 //                        注册到路由表中
-                        app.use(path, instance);
+                        app.use(path, (Handler) instance);
+                        if (Arrays.asList(interfaces).contains(InitAfter.class)) {
+                            ((InitAfter) instance).after(app);
+                        }
                     }
                 }
             } catch (ClassNotFoundException | InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
