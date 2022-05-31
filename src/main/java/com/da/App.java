@@ -4,12 +4,16 @@ import com.da.webservice.WebApp;
 
 public class App {
     public static void main(String[] args) {
-        WebApp app = new WebApp();
+//        扫描配置,自动注册到路由表中
+        WebApp app = new WebApp(App.class);
 //        app.before("/", () -> System.out.println("before"));
 //        app.after("/", () -> System.out.println("after"));
 //        app.use("/", (req, res) -> res.sendHtml("<h1>hello world</h1>"));
 //        静态资源目录,默认就是resources/static目录
 //        app.setStatic("static");
+//        app.use("/say", (req, res) -> res.sendHtml("hello"))
+//                .use("/hello", (req, res) -> res.sendText("world"))
+//                .use("/test", new HelloController());
 //        默认监听8080端口
         app.listen();
 //        定义启动后要做的操作

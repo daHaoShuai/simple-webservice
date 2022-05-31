@@ -65,7 +65,7 @@ public class Request {
                             this.url = beforeUrl;
                         }
                     }
-                    System.out.println("通过 [" + this.method + "] 方法 访问了 " + this.url + " 请求参数 " + this.params);
+                    System.out.println("通过 [" + this.method + "] 方法 访问了 [" + this.url + "] 请求参数 [" + this.params + "]");
                 }
             }
         } catch (Exception e) {

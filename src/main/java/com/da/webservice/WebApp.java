@@ -38,24 +38,43 @@ public class WebApp {
     private boolean isOpen = true;
     //    默认端口
     private final int PORT = 8080;
+    //    记录开始时间
+    private final long startTime;
+
+    public WebApp() {
+        startTime = System.currentTimeMillis();
+    }
+
+    //    传入配置类扫描
+    public WebApp(Class<?> clz) {
+        startTime = System.currentTimeMillis();
+//        丢到工具类中去扫描有注解并且实现了Handler接口的类注入到路由映射中去
+        Utils.initApp(clz, this);
+        System.out.println("加载配置映射到路由完成...");
+    }
 
     //    把路径映射添加到Map中去
-    public void use(String path, Handler handler) {
+    @SuppressWarnings("UnusedReturnValue") // 不加这个有黄线
+    public WebApp use(String path, Handler handler) {
         routes.put(path, handler);
+        return this;
     }
 
     //    路由前置处理
-    public void before(String path, MyConsumer consumer) {
+    public WebApp before(String path, MyConsumer consumer) {
         beforeHandlers.put(path, consumer);
+        return this;
     }
 
     //    路由后置处理
-    public void after(String path, MyConsumer consumer) {
+    public WebApp after(String path, MyConsumer consumer) {
         afterHandlers.put(path, consumer);
+        return this;
     }
 
     //    扫描静态文件目录添加到staticFiles列表中去
-    public void setStatic(String path) {
+    @SuppressWarnings("UnusedReturnValue") // 不加这个有黄线
+    public WebApp setStatic(String path) {
 //        更新的静态资源目录
         this.staticPathName = path;
         try {
@@ -64,6 +83,7 @@ public class WebApp {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return this;
     }
 
     //    处理静态资源文件夹下的所有文件
@@ -85,9 +105,9 @@ public class WebApp {
         }
     }
 
-
     //    扫描html目录,注册到路由中去
-    public void autoHandlerHtml(String path) {
+    @SuppressWarnings("UnusedReturnValue") // 不加这个有黄线
+    public WebApp autoHandlerHtml(String path) {
 //        更新网页文件目录
         this.htmlPathName = path;
         try {
@@ -95,6 +115,7 @@ public class WebApp {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return this;
     }
 
     //    处理html目录下的文件
@@ -116,7 +137,6 @@ public class WebApp {
         }
     }
 
-
     //    开启监听
     public void listen() {
         listen(this.PORT);
@@ -134,16 +154,15 @@ public class WebApp {
     //    @SuppressWarnings("InfiniteLoopStatement") // 去掉循环的黄线提示
     public void listen(int port, MyConsumer consumer) {
         try {
-            long startTime = System.currentTimeMillis();
 //            不知道有没有用,反正加上也没事
             System.setProperty("java.awt.headless", Boolean.toString(true));
             ServerSocket serverSocket = new ServerSocket(port);
 //            加载静态资源目录,服务启动起来先加载默认的静态资源目录
             this.setStatic(this.staticPathName);
-            System.out.println("加载静态资源目录完成 耗时: " + (System.currentTimeMillis() - startTime) + "ms");
+            System.out.println("加载静态资源目录完成...");
 //            加载html文件映射
             this.autoHandlerHtml(this.htmlPathName);
-            System.out.println("加载html文件目录完成 耗时: " + (System.currentTimeMillis() - startTime) + "ms");
+            System.out.println("加载html文件目录完成...");
             printInitMessage(port, startTime);
             consumer.accept();
             while (isOpen) {
@@ -177,9 +196,10 @@ public class WebApp {
 //                            写静态内容到浏览器
                             handlerFileToWrite(request, response, this.htmlFiles, this.htmlPathName);
                         } else {
+//                            没有找到对应路径的处理,返回404
                             response.setStatus(404)
                                     .setHeaders("Content-Type", "text/html")
-                                    .send("<h1 style='color:red;'>" + request.getUrl() + " is not found</h1>");
+                                    .send("<h1 style='color: red;text-align: center;'>404 not found</h1><hr/>");
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
