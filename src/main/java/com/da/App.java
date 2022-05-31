@@ -3,6 +3,7 @@ package com.da;
 import com.da.webservice.WebApp;
 
 public class App {
+
     public static void main(String[] args) {
 //        扫描配置,自动注册到路由表中
         WebApp app = new WebApp(App.class);
@@ -16,6 +17,7 @@ public class App {
 //                .use("/test", new HelloController());
 //        默认监听8080端口
         app.listen();
+//        app.shutdown();
 //        定义启动后要做的操作
 //        app.listen(() -> {
 //            System.out.println("服务启动了...");

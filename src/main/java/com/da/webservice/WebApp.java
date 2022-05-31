@@ -34,8 +34,6 @@ public class WebApp {
     private String htmlPathName = "html";
     //    静态文件路径和类型,有可能html目录下有不是网页的文件
     private final Map<String, String> htmlFiles = new HashMap<>();
-    //    标记服务器是否开启
-    private boolean isOpen = true;
     //    默认端口
     private final int PORT = 8080;
     //    记录开始时间
@@ -61,12 +59,14 @@ public class WebApp {
     }
 
     //    路由前置处理
+    @SuppressWarnings("UnusedReturnValue") // 不加这个有黄线
     public WebApp before(String path, MyConsumer consumer) {
         beforeHandlers.put(path, consumer);
         return this;
     }
 
     //    路由后置处理
+    @SuppressWarnings("UnusedReturnValue") // 不加这个有黄线
     public WebApp after(String path, MyConsumer consumer) {
         afterHandlers.put(path, consumer);
         return this;
@@ -153,62 +153,65 @@ public class WebApp {
 
     //    @SuppressWarnings("InfiniteLoopStatement") // 去掉循环的黄线提示
     public void listen(int port, MyConsumer consumer) {
-        try {
+//        用线程池执行while循环,避免阻塞后面要执行的任务
+        pool.execute(() -> {
+            try {
 //            不知道有没有用,反正加上也没事
-            System.setProperty("java.awt.headless", Boolean.toString(true));
-            ServerSocket serverSocket = new ServerSocket(port);
+                System.setProperty("java.awt.headless", Boolean.toString(true));
+                ServerSocket serverSocket = new ServerSocket(port);
 //            加载静态资源目录,服务启动起来先加载默认的静态资源目录
-            this.setStatic(this.staticPathName);
-            System.out.println("加载静态资源目录完成...");
+                this.setStatic(this.staticPathName);
+                System.out.println("加载静态资源目录完成...");
 //            加载html文件映射
-            this.autoHandlerHtml(this.htmlPathName);
-            System.out.println("加载html文件目录完成...");
-            printInitMessage(port, startTime);
-            consumer.accept();
-            while (isOpen) {
+                this.autoHandlerHtml(this.htmlPathName);
+                System.out.println("加载html文件目录完成...");
+                printInitMessage(port, startTime);
+                consumer.accept();
+                while (!pool.isShutdown()) {
 //                获取连接
-                Socket socket = serverSocket.accept();
+                    Socket socket = serverSocket.accept();
 //                使用线程池执行任务
-                pool.execute(() -> {
-                    try {
-                        Request request = new Request(socket.getInputStream());
-                        Response response = new Response(socket.getOutputStream());
+                    pool.execute(() -> {
+                        try {
+                            Request request = new Request(socket.getInputStream());
+                            Response response = new Response(socket.getOutputStream());
 //                        判断路由表中有没有对应的路由
-                        if (routes.containsKey(request.getUrl())) {
+                            if (routes.containsKey(request.getUrl())) {
 //                          前置处理
-                            if (beforeHandlers.containsKey(request.getUrl())) {
-                                beforeHandlers.get(request.getUrl()).accept();
-                            }
+                                if (beforeHandlers.containsKey(request.getUrl())) {
+                                    beforeHandlers.get(request.getUrl()).accept();
+                                }
 //                            给处理器传入请求和响应对象
-                            routes.get(request.getUrl()).callback(request, response);
+                                routes.get(request.getUrl()).callback(request, response);
 //                          后置处理
-                            if (afterHandlers.containsKey(request.getUrl())) {
-                                afterHandlers.get(request.getUrl()).accept();
+                                if (afterHandlers.containsKey(request.getUrl())) {
+                                    afterHandlers.get(request.getUrl()).accept();
+                                }
                             }
-                        }
 //                      判断静态资源路径有没有对应的路径
-                        else if (this.staticFiles.containsKey(request.getUrl())) {
+                            else if (this.staticFiles.containsKey(request.getUrl())) {
 //                            写静态内容到浏览器
-                            handlerFileToWrite(request, response, this.staticFiles, this.staticPathName);
-                        }
+                                handlerFileToWrite(request, response, this.staticFiles, this.staticPathName);
+                            }
 //                        处理html文件夹下的映射
-                        else if (this.htmlFiles.containsKey(request.getUrl())) {
+                            else if (this.htmlFiles.containsKey(request.getUrl())) {
 //                            写静态内容到浏览器
-                            handlerFileToWrite(request, response, this.htmlFiles, this.htmlPathName);
-                        } else {
+                                handlerFileToWrite(request, response, this.htmlFiles, this.htmlPathName);
+                            } else {
 //                            没有找到对应路径的处理,返回404
-                            response.setStatus(404)
-                                    .setHeaders("Content-Type", "text/html")
-                                    .send("<h1 style='color: red;text-align: center;'>404 not found</h1><hr/>");
+                                response.setStatus(404)
+                                        .setHeaders("Content-Type", "text/html")
+                                        .send("<h1 style='color: red;text-align: center;'>404 not found</h1><hr/>");
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                });
+                    });
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        });
     }
 
     //    处理文件写到浏览器
@@ -246,7 +249,6 @@ public class WebApp {
     //    关闭服务器
     public void shutdown() {
         pool.shutdownNow();
-        isOpen = false;
     }
 
     //    打印初始化信息
